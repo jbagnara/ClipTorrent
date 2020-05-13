@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"bytes"
 	"os"
+	"io/ioutil"
 )
 
 type decoder struct{	//decoder state
@@ -32,6 +33,9 @@ func decodeNext(d *decoder) (interface{}, int) {	//returns next decoded value an
 			break
 		case ':':
 			ret = parseString(d)
+			break
+		case 'l':
+			ret = parseList(d)
 			break
 	}
 
@@ -79,15 +83,67 @@ func parseString(d *decoder) string {	//accepts byte slice with pos pointing to 
 	return ret
 }
 
-func main(){
+func parseList(d *decoder) []interface{} {
+	d.pos++
+	list := make([]interface{}, listSize(d));
+	char := d.s[d.pos]
+	i := 0
 
-	byteArr := []byte{'6', 'i', '1', '0', '3', '9', '4', 'e', '3', ':', 'f', 'f', 'f', 't', 'g', '4', 'i', '7', '4', '3', 'e', 'u'}
+	for char != 'e' {
+		list[i], _ = decodeNext(d)
+		i++
+		char = d.s[d.pos]
+	}
+
+	return list
+
+}
+
+func listSize(d *decoder) int{	//accepts byte array with pos at list 'l', returns size of list
+	i := 1			//counter of current 'depth', 0 when end of initial list reached
+	j := d.pos
+	size := 0
+
+	for i > 0{
+		if d.s[j] == 'i' || d.s[j] == 'l' || d.s[j] == ':' ||  d.s[j] == 'd' {	//increase size each value
+			if d.s[j] != ':'{
+				i++
+			}
+			if d.s[j] == 'l'{	//if list, subtract size of sublist
+				oldpos := d.pos
+				d.pos = j+1
+				size = size - listSize(d)
+				d.pos = oldpos
+			}
+			size++
+		} else if d.s[j] == 'e' {
+			i--
+		}
+		j++
+	}
+	return size
+
+}
+
+func main(){
+	if len(os.Args) < 2 {
+		fmt.Printf("No file provided\n")
+		os.Exit(1)
+	}
+
+	byteArr, err := ioutil.ReadFile(os.Args[1])
+
+	if err != nil {
+		fmt.Printf("Invalid file: %s\n", os.Args[1])
+		os.Exit(1)
+	}
+
 	d := new(byteArr)
-	err := 1
+	err2 := 1
 	var ret interface{}
 
-	for err==1 {
-		ret, err = decodeNext(d);
+	for err2==1 {
+		ret, err2 = decodeNext(d);
 		fmt.Println(ret)
 	}
 }
